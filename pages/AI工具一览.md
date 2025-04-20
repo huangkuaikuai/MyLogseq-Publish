@@ -1,0 +1,3 @@
+- [BiliNote](https://www.bilinote.app/)
+	- BiliNote 是一个开源的 AI 视频笔记助手，支持通过哔哩哔哩、YouTube 等视频链接，自动提取内容并生成结构清晰、重点明确的 Markdown 格式笔记。支持插入截图、原片跳转等功能。
+-
