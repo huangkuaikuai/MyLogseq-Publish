@@ -30,7 +30,7 @@ jobs:
       - name: add a nojekyll file
         run: touch $GITHUB_WORKSPACE/www/.nojekyll
       - name: Deploy  
-        uses: JamesIves/github-pages-deploy-action@v4
+        uses: JamesIves/github-pages-deploy-action@v4.7.3
         with:
           repository-name: huangkuaikuai/MyLogseq-Publish
           branch: master # The branch the action should deploy to.
