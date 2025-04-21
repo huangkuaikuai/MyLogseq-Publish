@@ -262,7 +262,93 @@
 			- **在私有化组件数量不大的情况下，不考虑输入token的成本，除了rag的方案，也可以直接将所有的私有化组件文档通过js脚本进行组合成一个大的语料集合输入给生码的prompt中**。现在的大模型对于token的输入限制已经达到了百万级别，对于私有组件不多场景，少了RAG的召回步骤，应用效果是比较好的。
 			- 虽然RAG是比较通用的解决方案，但是由于大部分的用户缺乏专业性，会导致在切片和检索的时候没有办法进行非常精准的匹配导致效果不佳。当然本身RAG的方案也在不断的进步，除了传统的文字embeding模式，现在也有类似Graph RAG，DeepSearcher等新的RAG架构，不断的能提升召回的准确率。
 	- ## 接口定义到数据模型
+	  collapsed:: true
 		- 从前后端连调的视角最核心需要解决的问题是定义清楚接口的交付字段，通常来说后端会编写一份连调接口文档，然后根据这份文档约定进行前后端的业务代码编写。理想是美好的，但是在实际的研发过程中会有各种协同上的问题，如：
 			- **文档信息不完备，**接口相关的内容信息存在缺失。例如：缺少接口返回response对象最外层Wrapper的结构，导致前端调用出现空指针。
 			- **接口定义频繁的进行变更，**后端在技术方案设计到最终实现的过程中，经常会出现一些内部逻辑或者细节的调整，有可能是出现技术方案上没有考虑到的情况，也有可能是产品需求发生变更。有时是在连调的过程中，有时甚至有的时候是在发布前的CodeReview阶段，不仅存在安全隐患，也导致前端对接的成本随之上升。
 			- **交付方式不规范**，由于人员的流动等影响，部分业务外包开发缺少在协同过程中的一些规范，经常会有直接把接口信息扔到钉钉聊天中就觉得完成交付，可能是出于觉得编写文档这个过程过于麻烦。
+			- ![图片](https://mmbiz.qpic.cn/mmbiz_png/33P2FdAnjuicFRK8Q7SE9DN5cYfB1P31qEzGmvDm19jdIqtmnleVmmCCKKNnHPfqOMic0MxK61AvDaWddLScWoVw/640?wx_fmt=png&from=appmsg&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+		- 我们希望借助AI的能力，把接口定义到前端代码生成的过程标准化，对于后端，不需要花时间和精力去编写/维护接口文档，对于前端，在获取到接口定义的时候，自动转换成实体模型及相关请求hooks，减少时间去编写重复性的代码。
+		- 整体的技术方案思路大致如下：
+			- 通过不同途径（技术文档/PRD/mock平台）的接口定义的语料输入，经由带CoT的推理模型进行思考解析出标准化的OpenAPI schema协议，作为前后端对接的凭证。
+			- OpenAPI schema 3.0 规范可以参考：https://spec.openapis.org/oas/v3.0.3.html
+			- 根据得到的接口OpenAPI schema，生成对应的接口相关前端代码，model,service,hooks等。
+			- 如果需要，也可以通过工程化的链路，推送到对应的网关进行接口的注册（Mtop，IDD网关）。
+		- 链路框架如下图所示：
+			- ![图片](https://mmbiz.qpic.cn/mmbiz_png/33P2FdAnjuicFRK8Q7SE9DN5cYfB1P31qKp8eicKF9ib9rVmvZqCqDP6hib0OKyRSiaJweibn5pkmHen8blBejeWroCQ/640?wx_fmt=png&from=appmsg&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+		- ### 获取OpenAPI 3.0 Schema
+			- 将接口定义的转换成Open API Schema的语料有很多种，目前我们常见支持的包括以下几种方式：
+			- #### 1. 通过Java Interface或接口文档获取接口定义
+			  collapsed:: true
+				- 服务端对接前端的接口如果是http的，那么一般是在Spring MVP的Controller层。如果是通过MTOP等网关形式提供的,那么接口的定义一般是在client或者api包下的Facade Service中。
+				- 所以只要可以拿到后端应用中的controller或者是interface的代码，那么就可以通过让模型去理解接口的字段定义并转换成OpenAPI schema。
+				- 目前我们提供了一个管理页面，服务端开发可以在管理页面上粘贴本次迭代变更相关的接口代码或者是技术文档，只要能包含全量的信息即可，存在部分的冗余也没有关系。（这一步后续也可以集成到git webhooks或者终端的指令上，智能去分析仓库中相关涉及这次变更的代码和实体模型）。
+				- 如图是一个二方HSF的Java Interface的源码
+					- ![图片](https://mmbiz.qpic.cn/mmbiz_png/33P2FdAnjuicFRK8Q7SE9DN5cYfB1P31qczngtJaClHnskK4aHzDQJZ8yUbhpSicw3ibaB6KQmFWiahOA61BXXMQTw/640?wx_fmt=png&from=appmsg&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+				- 提交后由CoT推理大模型进行分析，提取关键的函数名和签名参数信息
+					- ![图片](https://mmbiz.qpic.cn/mmbiz_png/33P2FdAnjuicFRK8Q7SE9DN5cYfB1P31qX2dQiayIhdiaLwmKAT5twdGS4kwLqgOYw331DUibLmX7RQqSWnhz3Ixyw/640?wx_fmt=png&from=appmsg&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+					- ![图片](https://mmbiz.qpic.cn/mmbiz_png/33P2FdAnjuicFRK8Q7SE9DN5cYfB1P31qFl2gHRI1Qw6AyHWUPf2mEEQKuvwcOtKbyzxuBBwXuo7WcxrQzkxnRA/640?wx_fmt=png&from=appmsg&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+				- 最后以OpenAPI Schema的格式进行输出
+					- ![图片](https://mmbiz.qpic.cn/mmbiz_png/33P2FdAnjuicFRK8Q7SE9DN5cYfB1P31qVYzZgbWWPKP5LqKic5ict37hYd6ibS6Uew62h9KP6C5ELqxtdbibvZT2TQ/640?wx_fmt=png&from=appmsg&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+				- 这种方式的普适性比较广，但是准确率相对偏低一点，一方面是目前的大模型无法避免的幻觉问题，另一方式则是部分的手动复制的时候可能会遗漏部分的必要信息，可以在左边的OpenAPI的可视化编辑器内进行二次的修改。
+			- #### 2. 通过Swagger插件获取接口定义
+				- 第二种方式是通过安装Swagger插件，在项目中引入springfox-swagger2的依赖，并初始化配置类，具体的接入方式和demo可以参考SpringFox的官方站点介绍：https://springfox.github.io/springfox/
+				- 在maven中引入的配置包括：
+				  collapsed:: true
+					- ```xml
+					  <dependency>
+					      <groupId>io.springfox</groupId>
+					      <artifactId>springfox-swagger2</artifactId>
+					      <version>2.8.0</version>
+					  </dependency>
+					  <dependency>
+					      <groupId>io.springfox</groupId>
+					      <artifactId>springfox-swagger-ui</artifactId>
+					      <version>2.8.0</version>
+					  </dependency>
+					  <dependency>
+					      <groupId>com.github.xiaoymin</groupId>
+					      <artifactId>swagger-bootstrap-ui</artifactId>
+					      <version>1.9.6</version>
+					  </dependency>
+					  ```
+			- 完成接入后，可以通过在代码中添加注释的就就可以自动生成swagger-ui ，并在本地的web页面中可以直接复制出OpenAPI Schema
+				- ![图片](https://mmbiz.qpic.cn/mmbiz_png/33P2FdAnjuicFRK8Q7SE9DN5cYfB1P31qE3VOwMd1AdwGMW4y36XXnCicmk93FGgTtrgjtDMiaQ1TPpQ68m8O6AhA/640?wx_fmt=png&from=appmsg&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+			- #### 3. 通过网关获取接口定义
+				- 第三种方式是通过服务端注册网关，天猫品牌行业这边中后台页面接口有统一的网关服务用于管理：服务注册，稳定性流量的监控，生成http服务等。使用网关的研发流程中，服务端开发可以通过提供的Idea插件或者是手动配置的在网关上完成注册。我们在内部和网关团队合作，打通了服务的网关信息并支持完成OpenAPI Schema的转换。
+				- ### **schema到代码生成注入**
+					- 在拿到接口的详细OpenAPI schema定义后，就可以自动化的生成数据请求所需要的前端相关代码，主要是以下几部分：
+						- Model：每个接口的Request，Response，DTO都有对应的数据模型的TS定义，类型定义清晰明确，确保代码的健壮性。
+						- Service：封装完整的数据请求服务，包括请求路径，类型，参数，异常处理等。（部分的高级组件内部会集成状态管理，只需要把数据请求服务作为参数传入）。
+						- Hooks：在Service的基础上进一步集成React状态管理，直接用于可以对接Fusion等UI组件
+						- Mock：本地的数据仿真服务，通过faker.js模拟数据，根据环境识别自动切换本地仿真数据请求
+					- 除此以外，也可以根据业务的需要注入相关的业务埋点服务,稳定性监控等。具体的模版到代码的生成实现方案可以参考开源社区的优秀工具集，如：Kubb(https://kubb.dev/) 是专为现代 TypeScript 前端工程设计的 OpenAPI 代码生成器，通过解析 OpenAPI 3.x 规范自动生成完整类型安全的 API 客户端代码。
+					- ![图片](https://mmbiz.qpic.cn/mmbiz_png/33P2FdAnjuicFRK8Q7SE9DN5cYfB1P31qa1RAqKBiaVKCaIB8ZGL52ibAnLatY2ymOZFq7ZhyeIricEib908phmZiahw/640?wx_fmt=png&from=appmsg&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+					-
+	- ## 代码拟合和调整
+		- ### **业务代码拟合**
+			- 以上我们已经获取到了AI生成的UI交互代码和交互数据相关的接口服务，实体模型和react hooks，下一步就是让AI根据仓库下这些的代码素材进行业务逻辑的拟合和拼装。
+			- 拟合提示词
+			  logseq.order-list-type:: number
+			  collapsed:: true
+				- logseq.order-list-type:: number
+				  ```apl
+				  // 此处省略通用的一些编码要求
+				  ......
+				  你是一个高级前端开发工程师，具有React组件和Hooks的深度开发经验
+				  熟练编写和集成自定义 hooks 与组件
+				  将用户提供的 React 组件代码与自定义 hooks 整合在一起。
+				  偏爱使用${component_lib}组件，如果必要或用户要求，可以使用其他第三方库。
+				  
+				  ....
+				  
+				  ## 注意事项
+				  确保整合代码的逻辑流畅和一致性
+				  理解用户的主要目标，包括如何整合组件和 Hooks，确保整合后的代码符合最佳实践。
+				  确保 Hooks 的方法名、引用路径以及类型定义的准确性和一致性。
+				  导入 hook, model 的目录路径应该是相对于当前文件的路径，并加上 `generate`。
+				  最终组件中使用的数据字段应该是根据请求返回的数据定义来的。
+				  
+				  // 此处省略具体的内容规划，结构格式要求和执行路径
+				  ......
+				  ```
