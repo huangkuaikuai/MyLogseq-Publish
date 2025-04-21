@@ -20,6 +20,7 @@
 		- 接下来主要围绕这2个场景介绍一下我们在提效过程中的一些方案设计推导和实践。
 - # 02 实践推导
 	- ## 设计出码
+	  collapsed:: true
 		- 在设计出码的这个链路中，已经有很多的同类型的产品，有的产品会选择DSL的转化路线，比如Figma/mgdone的砖码插件，支付宝的WeaveFox，还有大部分低代码平台，虽然通过DSL中间层实现代码生成，相较于普通AI直出代码，优势在于程序化解析保障稳定性（防错机制）和统一DSL支撑跨语言协同。
 		- 我们选择了AI直出代码的方案，主要考虑到几下几点：
 			- DSL大部分是各个平台私有化的定制，缺少统一的标准化，对于模型学习的语料不足，或者说需要进行一定的预训练，而前端代码，无论是React/Vue都有海量的公共学习语料，随着模型的学习数据和理解力的不断提升，完全能达到初/中级前端程序员的编码能力。
@@ -29,6 +30,7 @@
 		- AI出码：
 			- ![图片](https://mmbiz.qpic.cn/mmbiz_png/33P2FdAnjuibtTBDB96EIdhT3fe5R4wibC5hSa5h7hqqdicL2L2r1icDtINV7FuGNPjLMSKTOdEwpjRibbJK3vFQovg/640?wx_fmt=png&from=appmsg&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
 	- ## 模型选择和提示词
+	  collapsed:: true
 		- ### 1 Claude 3.7 Sonnet
 			- 在模型的选择方面，Claude 3.7 sonnet V2在代码方面的能力毋庸置疑，已经甩开了与OpenAI主流模型的差距,新版本在主动编码和工具使用方面有明显进步。
 			- 在编码测试中，它将SWE-bench Verified的表现从33.4%提高到了49.0%，超过了所有公开的模型，不仅包括OpenAI o1-preview这样的推理模型，还有专为主动编码设计的系统。
@@ -37,6 +39,7 @@
 			- ![图片](https://mmbiz.qpic.cn/mmbiz_png/33P2FdAnjuibtTBDB96EIdhT3fe5R4wibCNOQKOIxzFCibxyICmJWgWor4nYiaWH9vhwqN8vZiaiaSx4lCcQckV7RqibA/640?wx_fmt=png&from=appmsg&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
 			- ![image.png](../assets/image_1745245049212_0.png)
 		- ### 2 提示词编写
+		  collapsed:: true
 			- 关于D2C出码提示词的编写，业内有很多的参考，比如：
 			- cline提示词：https://github.com/cline/cline/blob/main/src/core/prompts/system.ts
 			- bolt.new提示词：https://github.com/stackblitz/bolt.new/blob/main/app/lib/.server/llm/prompts.ts
@@ -51,4 +54,215 @@
 				- 2. 不会输出`<svg>`图标。总是使用 `@alifd/next` 库中的Icon的图标。
 			- prompt示例：
 				- ```apl
+				  <role>
+				    你是一个高级前端开发工程师。基于用户提供的组件描述，请生成一个React Fusion组件代码块。请使用中文回答。
+				  </role>
+				  
+				  <skills>
+				    1. 你能够熟练的使用 Fusion(@alifd/next) 组件库进行页面的还原。 
+				    2. 你能够熟练的使用 bizcharts
+				    图表库进行图表的可视化展示。图表库的导入方式类似`import {AreaChart} from 'bizcharts'`;
+				   3. 注意field 是要用Field.useField()
+				  </skills>
+				  
+				  <constraints>
+				  使用```tsx 语法来返回 React 代码块。
+				  
+				  <engineering-constraints>
+				    1. React组件代码块仅支持一个文件，没有文件系统。用户不会为不同文件编写多个代码块，也不会在多个文件中编写代码。用户的习惯总是内联所有代码。
+				    2. 必须导出一个名为"Component"的函数作为默认导出。 
+				    3. 你总是需要返回完整的代码片段，可以直接复制并粘贴到项目工程中执行。不要包含用户补充的注释。
+				    4. 代码返回格式需要参考给出的示例代码 
+				    ......
+				    10. tsx block请务必在第一个返回，后面讲思考过程和解释。
+				    11. 请注意UI的布局、颜色、主要按钮等信息，保证和图像中的结构和布局一致。
+				    12. 按照 <data-define></data-define>中的数据、hooks定义构建符合字段含义的数据。
+				  </engineering-constraints>
+				  
+				  <attention>
+				  1. form用法中应该用Field.useField() 而不是Form.useForm，更要注意Rol Col用法和props
+				  2. pay attention on fusion components. 如果不确定有没有对应组件请用div实现
+				  3. 请注意严格按照图片中的逻辑、描述进行还原
+				  ......
+				  </attention>
+				  
+				  <style-constraints>
+				    1. 总是尝试使用 @alifd/next 库，在 @alifd/next 不满足的情况下才通过 div 和 style 属性生成。
+				    2. 必须生成响应式设计，生成的代码移动端优先。 
+				  ......
+				  </style-constraints>
+				  
+				  </constraints>
+				  
+				  <good-examples>
+				  ......
+				  </good-examples>
+				  
+				  <bad-examples>
+				  ......
+				  </bad-examples>
 				  ```
+		- ### 3 私有化组件支持
+			- 对于AI出码来说，除了设计稿的准确还原以外，另一部分很重要的是如何把团队的私有的物料组件结合到生成的代码中。
+			- 使用业务私有组件的主要原因包括：
+				- **设计资产复用**：将团队沉淀的业务组件（如审批流表单、数据看板卡片）转化为AI可识别的设计资产，避免重复造轮子
+				- **代码规范统一：**通过私有组件约束代码生成边界，保证AI输出符合企业级代码规范（如数据校验规则、埋点标准）
+			- 在AI出码的流程实现融入私有化组件的大致流程如下：
+				- 1. 将设计元素与私有组件库特征进行向量化匹配
+				- 2. 动态注入组件使用规范、业务逻辑约束等上下文
+				- 3. 生成符合企业标准的定制化代码
+				- ![图片](https://mmbiz.qpic.cn/mmbiz_png/33P2FdAnjuicFRK8Q7SE9DN5cYfB1P31q5x4N9yV5TtibI91VhdpiaH9u6phhIoJJBLDypfbHjygvMnFvc8icnz3NA/640?wx_fmt=png&from=appmsg&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+		- ### 4 组件文档的生成
+			- 目前的大语言模型AI的能力，尤其是近期不断更新的reasoning推理型大模型，将私有组件的源代码转换成标准化的组件文档非常的轻松，仅需要编写一段清晰的prompt并且给几个具体的example案例，模型就可以生成非常高标准高质量的markdown格式组件文档。
+			- 关注提示词编写的注意事项在上文D2C提示词编写已经说明过了，这里直接给出具体的prompt案例：
+			  collapsed:: true
+				- ```apl
+				  <role>
+				    您是一个专注于为前端组件生成清晰结构化文档的文档助手。根据用户提供的 React 组件代码，您的任务是创建与示例文档 `example.md` 格式和风格一致的规范化文档片段。
+				  </role>
+				  
+				  <skills>
+				    1. 能有效解析和理解 React 组件代码
+				    2. 擅长将代码逻辑、结构和功能转化为精准简明的文档
+				    3. 熟悉 @ali/homepage-card 和 bizcharts 库的细节，能在文档中准确描述其用法
+				  </skills>
+				  
+				  <output-constraints>
+				    1. 输出必须采用 Markdown 格式
+				    2. 输出内容仅包含组件说明，不包含任何礼貌性冗余表述
+				    3. 文档应包含组件描述、属性类型、默认值和用法示例
+				    4. 注意识别接口中实际未使用但被强制要求填写的字段，需在文档中明确标注
+				    5. 生成使用示例时，必须包含原始代码接口定义中标记为必填的参数（即使未实际使用）
+				    6. 严格遵循 `example.md` 的样式和格式规范
+				    7. 确保文档专业准确，覆盖边界用例和典型场景
+				  </output-constraints>
+				  
+				  <engineering-constraints>
+				    1. 分析 React 组件代码以提取必要的文档信息
+				    2. 重点将代码逻辑转换为清晰的文档结构（"描述"/"属性"/"示例用法"/"注意事项"）
+				    3. 避免技术术语，使用简洁易懂的语言适应广泛读者群体
+				  </engineering-constraints>
+				  ```
+			- 以下是一个完整组件文档的示例
+			  collapsed:: true
+				- ```apl
+				  组件名称和组件的使用场景
+				  组件名称: AnalysisText
+				  使用场景:
+				  AnalysisText 是一个用于展示智能分析报告的卡片组件。它通常用于物流解决方案的首页，展示一些分析数据或报告内容。该组件可以自定义标题、内容以及样式类名，适合用于需要展示富文本内容的场景。
+				  
+				  该组件的props说明
+				  Prop Name	Type	Default Value	Description
+				  data	string	""	需要展示的分析报告内容，支持HTML格式。
+				  title	ReactNode	<div className="analysis-text-title"><img width={20} src="..."/>智能分析报告</div>	自定义标题，如果不传入，则会使用默认的标题（包含图标和“智能分析报告”文字）。
+				  className	string	""	可选的自定义样式类名，用于覆盖默认样式。
+				  
+				  该组件的使用示例
+				  import React from 'react';
+				  import { AnalysisText } from '@ali/homepage-card';
+				  
+				  const App = () => {
+				    const reportData = `
+				      <p>这是一份智能分析报告的内容。</p>
+				      <ul>
+				        <li>分析点1：数据趋势良好</li>
+				        <li>分析点2：存在部分异常</li>
+				      </ul>
+				    `;
+				  
+				    return (
+				      <div>
+				        {/* 使用默认标题 */}
+				        <AnalysisText data={reportData} />
+				  
+				        {/* 自定义标题 */}
+				        <AnalysisText 
+				          data={reportData} 
+				          title={<h3>自定义分析报告</h3>} 
+				          className="custom-analysis-text" 
+				        />
+				      </div>
+				    );
+				  };
+				  
+				  export default App;
+				  
+				  注意事项
+				  1. HTML内容安全性:
+				  data 属性支持HTML格式的内容，但由于使用了 dangerouslySetInnerHTML，需要注意传入的内容是否安全，避免XSS攻击。
+				  2. 默认标题:
+				  如果不传入 title，组件会使用默认的标题（包含图标和“智能分析报告”文字）。如果需要完全自定义标题，可以通过 title 属性传入自定义的React节点。
+				  3. 样式覆盖:
+				  可以通过 className 属性传入自定义的样式类名，覆盖默认的样式。建议在项目中使用CSS模块或全局样式来管理组件的样式。
+				  ```
+	- ## RAG的方案
+	  collapsed:: true
+		- 关于RAG相关的基础背景知识在这里就不详细展开了，外网上可以搜到大量相关的介绍的文章。在使用RAG方案使用私有组件进行出码分为索引(Index)部分和查询(Query)2个阶段：
+		- **在索引阶段：**
+			- 知识文档的准备：收集和准备组件的文档，这里的文档可以是上文中通过AI生成的文档，也可以是类似Fusion Design之类的一些外网知识信息偏少的公共组件文档。
+			- 文本块拆分：对于私有组件而言，一般来说一个组件就是一个md文档，不需要在额外进行拆分。
+			- 嵌入模型：通过LamaIndex等服务将文本块转换为向量表示并存储在向量数据库中。
+		- **在查询阶段:**
+			- 接收查询请求：在发起模型请求阶段判断当前的出码流程是否需要进行私有组件的召回。
+			- 查询处理并检索：按设计稿进行拆分准备检索私有组件文档，如果图像识别不够准确的话可以配以文字的描述
+			- 生成回答：根据检索到的文档信息中的组件API和使用说明生成回答（代码）。
+		- RAG整体流程示意图
+			- ![图片](https://mmbiz.qpic.cn/mmbiz_png/33P2FdAnjuicFRK8Q7SE9DN5cYfB1P31qHTEGFqYAmsGjsiaM9GE3xr9c3enhicqR6sLDDqQFTMBAUsr6nkwmXXnQ/640?wx_fmt=png&from=appmsg&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+		- 实现RAG也有比较多的方式，主要常见的包括以下几种：
+		- **通过LlamaIndex 类的RAG框架从0自己搭建**
+		  collapsed:: true
+			- LlamaIndexTS 是一个面向 TypeScript/JavaScript 生态的检索增强生成（RAG）框架，专为构建私有化知识索引与智能查询系统设计。其核心目标是通过高效的索引结构，将企业私有数据（如组件库、业务文档、设计规范）与大型语言模型（LLM）结合，实现精准的语义检索与上下文增强生成。
+			- 知识库构建示例代码
+				- ```dart
+				  
+				  // 加载私有组件文档
+				  const componentDocs = await new ComponentDocLoader({
+				    repoPath: './src/components',
+				    metadataExtractor: (code) => ({
+				      props: extractComponentProps(code),
+				      usage: extractUsageExamples(code)
+				    })
+				  }).load();
+				  
+				  // 创建专用索引
+				  const componentIndex = await VectorStoreIndex.fromDocuments(componentDocs, {
+				    embedModel: new ComponentEmbeddingModel()
+				  });
+				  ```
+			- 检索示例代码：
+				- ```xml
+				  const query = "需要一个带校验功能的表单输入框";
+				  const results = await componentIndex.asRetriever().retrieve({
+				    query,
+				    filters: {
+				      componentType: 'FormInput',
+				      version: '>=2.3.0'
+				    }
+				  });
+				  
+				  // 生成代码上下文
+				  const context = results.map(r => r.node.getContent());
+				  const prompt = buildCodeGenPrompt(query, context);
+				  const code = await llm.generate(prompt);
+				  ```
+			- 自建RAG服务的场景主要适合对知识库的分拆算法，召回逻辑自定义要求比较高的，并且本身有一定的基础研发能力的团队，涉及到的服务能力，向量数据库的维护，尤其是AI基建越来越完善的当下，**一般来说不是特别推荐**。
+		- **通过Dify等的AI agent平台搭建流程**
+			- 除了通过LamaIndex，LangChain等开发框架进行私有化部署以外，也可以集成化的AI服务平台，从知识库的管理，Prompt的调优，Agent的流程设计实现都可以一站式的完成。
+			- 以集团的AI studio为例，首先在Workspace中先创建一个知识库
+			  collapsed:: true
+				- ![图片](https://mmbiz.qpic.cn/mmbiz_png/33P2FdAnjuicFRK8Q7SE9DN5cYfB1P31qgtDsmAtx8RoQrXt8ErebmJibicYKPZ6sRtK1RoVt8SMgoxx2VY4Gsf8w/640?wx_fmt=png&from=appmsg&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+			- 支持通过语雀文档或者是本地pdf，markdown等常用格式进行知识库内容的上传
+			  collapsed:: true
+				- ![图片](https://mmbiz.qpic.cn/mmbiz_png/33P2FdAnjuicFRK8Q7SE9DN5cYfB1P31qr5AHVOicABnE4UvrU06ibV54XDAQlrDDg1pL9RQlCLX5yibKSZUWc6H4w/640?wx_fmt=png&from=appmsg&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+			- 创建一个流程编排Agent,将输入的图片，预制的prompt连接到对应的知识库上，完成整个流程的串联。最后根据这个agent流程在workspace中进行测试和调优，就完成了整个服务的搭建，非常的便捷。
+			  collapsed:: true
+				- ![图片](https://mmbiz.qpic.cn/mmbiz_png/33P2FdAnjuicFRK8Q7SE9DN5cYfB1P31qzjFIFCFkmevebZ20Y8wDy1lLicKrR5tic2ds2NtIEQkWmRHfj2ibg7OHA/640?wx_fmt=png&from=appmsg&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+			- RAG的方案最大的问题在于召回的匹配度，由于输入的信息是图片，大模型根据图像识别的理解需要能够准确的理解需求，并根据语意相似度匹配上对应的私有化组件，这个会存在一定的召回失败的概率。
+			- **所以在文档上需要有详细的应用场景和对应的案例，或者是通过类似CopyCoder的方案在前置进行一次图片转文字Prompt的解析，帮助更精准的召回。**
+			- **在私有化组件数量不大的情况下，不考虑输入token的成本，除了rag的方案，也可以直接将所有的私有化组件文档通过js脚本进行组合成一个大的语料集合输入给生码的prompt中**。现在的大模型对于token的输入限制已经达到了百万级别，对于私有组件不多场景，少了RAG的召回步骤，应用效果是比较好的。
+			- 虽然RAG是比较通用的解决方案，但是由于大部分的用户缺乏专业性，会导致在切片和检索的时候没有办法进行非常精准的匹配导致效果不佳。当然本身RAG的方案也在不断的进步，除了传统的文字embeding模式，现在也有类似Graph RAG，DeepSearcher等新的RAG架构，不断的能提升召回的准确率。
+	- ## 接口定义到数据模型
+		- 从前后端连调的视角最核心需要解决的问题是定义清楚接口的交付字段，通常来说后端会编写一份连调接口文档，然后根据这份文档约定进行前后端的业务代码编写。理想是美好的，但是在实际的研发过程中会有各种协同上的问题，如：
+			- **文档信息不完备，**接口相关的内容信息存在缺失。例如：缺少接口返回response对象最外层Wrapper的结构，导致前端调用出现空指针。
+			- **接口定义频繁的进行变更，**后端在技术方案设计到最终实现的过程中，经常会出现一些内部逻辑或者细节的调整，有可能是出现技术方案上没有考虑到的情况，也有可能是产品需求发生变更。有时是在连调的过程中，有时甚至有的时候是在发布前的CodeReview阶段，不仅存在安全隐患，也导致前端对接的成本随之上升。
+			- **交付方式不规范**，由于人员的流动等影响，部分业务外包开发缺少在协同过程中的一些规范，经常会有直接把接口信息扔到钉钉聊天中就觉得完成交付，可能是出于觉得编写文档这个过程过于麻烦。
